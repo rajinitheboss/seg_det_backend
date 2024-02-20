@@ -1,0 +1,5 @@
+sam/weights/
+sam/__pycache__/
+yolov8/__pycache__/
+yolov8/yolov8s-seg.pt
+__pycache__/
