@@ -3,3 +3,7 @@ sam/__pycache__/
 yolov8/__pycache__/
 yolov8/yolov8s-seg.pt
 __pycache__/
+yolov8/uploads/*
+sam/uploads/*
+free_solo_det_fast_rcnn/uploads/*
+free_solo_seg_mrcnn/uploads/*

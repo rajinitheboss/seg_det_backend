@@ -7,6 +7,8 @@ from flask_cors import CORS
 import shutil
 from datetime import datetime
 from sam.sam import SegmentAnythingAPI,SegmentAnythingCLI
+from free_solo_seg_mrcnn.segment import Free_solo_segmenter
+from free_solo_det_fast_rcnn.detect import Free_solo_detector
 
 app = Flask(__name__)
 CORS(app)
@@ -41,14 +43,26 @@ def upload_file_segment():
         return jsonify({'error': 'No selected file'}), 400
     
     if file and allowed_file(file.filename):
-        original_ext = file.filename.rsplit('.', 1)[1].lower()  
-        new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
-        file_path = os.path.join('sam',app.config['UPLOAD_FOLDER'], new_filename)
+
+        model = request.form['model'].strip().lower()
+
+        print(model)
+
+        if model == 'sam':
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('sam',app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(file_path)
+            sam_segmenter = SegmentAnythingCLI()
+            segmented_image_path = sam_segmenter.segment_image(image_path=file_path)
         
-       
-        file.save(file_path)
-        sam_segmenter = SegmentAnythingCLI()
-        segmented_image_path = sam_segmenter.segment_image(image_path=file_path)
+        elif model == 'm_rcnn':
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('free_solo_seg_mrcnn',app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(file_path)
+            freeSoloSegmenter = Free_solo_segmenter()
+            segmented_image_path = freeSoloSegmenter.onImage(img_path=file_path)
 
         print('segmentation and moving to uploads folder is done')
 
@@ -62,21 +76,41 @@ def upload_file_segment():
 
 @app.route('/upload_detect', methods=['POST'])
 def upload_file_detect():
+
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
+    
+
     if file and allowed_file(file.filename):
-        if os.path.isdir('runs'):
-            shutil.rmtree('runs')
-        original_ext = file.filename.rsplit('.', 1)[1].lower()  
-        new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
-        file_path = os.path.join('yolov8',app.config['UPLOAD_FOLDER'], new_filename)
+
+        model = request.form['model'].strip().lower()
+
+        print(model)
+
+        if model == 'yolov8':
+            if os.path.isdir('runs'):
+                shutil.rmtree('runs')
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('yolov8',app.config['UPLOAD_FOLDER'], new_filename)
+            
         
-       
-        file.save(file_path)
-        detected_image_path = detect_image_yolov8(image_path=file_path)
+            file.save(file_path)
+            detected_image_path = detect_image_yolov8(image_path=file_path)
+
+        elif model == 'free solo':
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('free_solo_det_fast_rcnn',app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(file_path)
+            freeSoloDetector = Free_solo_detector()
+            detected_image_path = freeSoloDetector.onImage(img_path=file_path)
+
+            print('free solo done')
 
         print('detection and moving to uploads folder is done')
 
