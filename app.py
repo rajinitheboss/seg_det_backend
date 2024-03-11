@@ -9,10 +9,20 @@ from datetime import datetime
 from sam.sam import SegmentAnythingAPI,SegmentAnythingCLI
 from free_solo_seg_mrcnn.segment import Free_solo_segmenter
 from free_solo_det_fast_rcnn.detect import Free_solo_detector
+from detr.detr import DETRDetector
+import threading
+from CA_Net.show_fused_heatmap import ImageProcessor
+import zipfile
+import io
+import base64
+from SAHI.sahi_prediction import sahiDetector
+from multiple_model import multiple_model
+
 
 app = Flask(__name__)
 CORS(app)
 
+app.register_blueprint(multiple_model)
 
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -24,6 +34,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+threading_result = dict()
 
 @app.route('/')
 def home():
@@ -36,48 +47,86 @@ def segment_image_sam(image_path):
 
 @app.route('/upload_segment',methods=['POST'])
 def upload_file_segment():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    if file and allowed_file(file.filename):
-
-        model = request.form['model'].strip().lower()
-
-        print(model)
-
-        if model == 'sam':
-            original_ext = file.filename.rsplit('.', 1)[1].lower()  
-            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
-            file_path = os.path.join('sam',app.config['UPLOAD_FOLDER'], new_filename)
-            file.save(file_path)
-            sam_segmenter = SegmentAnythingCLI()
-            segmented_image_path = sam_segmenter.segment_image(image_path=file_path)
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
         
-        elif model == 'm_rcnn':
-            original_ext = file.filename.rsplit('.', 1)[1].lower()  
-            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
-            file_path = os.path.join('free_solo_seg_mrcnn',app.config['UPLOAD_FOLDER'], new_filename)
-            file.save(file_path)
-            freeSoloSegmenter = Free_solo_segmenter()
-            segmented_image_path = freeSoloSegmenter.onImage(img_path=file_path)
+        if file and allowed_file(file.filename):
 
-        print('segmentation and moving to uploads folder is done')
+            model = request.form['model'].strip().lower()
+
+            print(model)
+
+            if model == 'sam':
+                original_ext = file.filename.rsplit('.', 1)[1].lower()  
+                new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+                file_path = os.path.join('sam',app.config['UPLOAD_FOLDER'], new_filename)
+                file.save(file_path)
+                sam_segmenter = SegmentAnythingCLI()
+                segmented_image_path = sam_segmenter.segment_image(image_path=file_path)
+            
+            elif model == 'm_rcnn':
+                original_ext = file.filename.rsplit('.', 1)[1].lower()  
+                new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+                file_path = os.path.join('free_solo_seg_mrcnn',app.config['UPLOAD_FOLDER'], new_filename)
+                file.save(file_path)
+                freeSoloSegmenter = Free_solo_segmenter()
+                segmented_image_path = freeSoloSegmenter.onImage(img_path=file_path)
+
+            elif model == 'ca-net':
+                # original_ext = file.filename.rsplit('.', 1)[1].lower()  
+                # new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+                # file_path = os.path.join('CA_Net',app.config['UPLOAD_FOLDER'], new_filename)
+                # file.save(file_path)   
+                # segmented_image_path = ImageProcessor.segmentImage(filepath=file_path)          
+                segmented_image_path = canet_segmentation(file)   
 
 
-        return send_file(segmented_image_path, mimetype='image/png'),200
 
-    else:
-        return jsonify({'error': 'Invalid file format'}), 400
+            print('segmentation and moving to uploads folder is done')
+
+
+            return send_file(segmented_image_path, mimetype='image/png'),200
+        else:
+            return jsonify({'error': 'Invalid file format'}), 400
+    except:
+        return jsonify({'error':'somethign went wrong'}),400    
+
+def sam_segmentation(file):
+    original_ext = file.filename.rsplit('.', 1)[1].lower()  
+    new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+    file_path = os.path.join('sam',app.config['UPLOAD_FOLDER'], new_filename)
+    file.save(file_path)
+    sam_segmenter = SegmentAnythingCLI()
+    segmented_image_path = sam_segmenter.segment_image(image_path=file_path)
+    return segmented_image_path
+
+def mrcnn_segmentation(file):
+    original_ext = file.filename.rsplit('.', 1)[1].lower()  
+    new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+    file_path = os.path.join('free_solo_seg_mrcnn',app.config['UPLOAD_FOLDER'], new_filename)
+    file.save(file_path)
+    freeSoloSegmenter = Free_solo_segmenter()
+    print('MRCNN SEGMENTATION')
+    segmented_image_path = freeSoloSegmenter.onImage(img_path=file_path)
+    return segmented_image_path
+
+def canet_segmentation(file):
+    original_ext = file.filename.rsplit('.', 1)[1].lower()  
+    new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+    file_path = os.path.join('CA_Net',app.config['UPLOAD_FOLDER'], new_filename)
+    file.save(file_path)   
+    print('uploading is done for CA NET ')
+    segmented_image_path = ImageProcessor.segmentImage(filepath=file_path) 
+    return segmented_image_path
 
 
 
 @app.route('/upload_detect', methods=['POST'])
 def upload_file_detect():
-
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
@@ -97,8 +146,6 @@ def upload_file_detect():
             original_ext = file.filename.rsplit('.', 1)[1].lower()  
             new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
             file_path = os.path.join('yolov8',app.config['UPLOAD_FOLDER'], new_filename)
-            
-        
             file.save(file_path)
             detected_image_path = detect_image_yolov8(image_path=file_path)
 
@@ -110,7 +157,20 @@ def upload_file_detect():
             freeSoloDetector = Free_solo_detector()
             detected_image_path = freeSoloDetector.onImage(img_path=file_path)
 
-            print('free solo done')
+        elif model == 'detr':
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('detr',app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(file_path)
+            detrDetector = DETRDetector()
+            detected_image_path = detrDetector.predictImage(image_path = file_path)
+
+        elif model == 'sahi':
+            original_ext = file.filename.rsplit('.', 1)[1].lower()  
+            new_filename = f"image_{datetime.now().strftime('%Y%m%d%H%M%S')}.{original_ext}"  
+            file_path = os.path.join('SAHI',app.config['UPLOAD_FOLDER'], new_filename)
+            file.save(file_path)
+            detected_image_path = sahiDetector.DetectImage(filepath=file_path)
 
         print('detection and moving to uploads folder is done')
 
@@ -119,6 +179,9 @@ def upload_file_detect():
 
     else:
         return jsonify({'error': 'Invalid file format'}), 400
+
+
+
 
 
 def detect_image_yolov8(image_path):
@@ -136,4 +199,4 @@ def process_image(image_path):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

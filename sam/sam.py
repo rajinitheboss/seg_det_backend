@@ -3,6 +3,8 @@ import cv2
 import torch
 import supervision as sv
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+# import matplotlib.pyplot as plt
+# import matplotlib.image as mpimg
 
 
 HOME = os.getcwd()
@@ -32,6 +34,14 @@ class SegmentAnythingAPI:
         detections = sv.Detections.from_sam(sam_result=sam_result)
         annotated_image = mask_annotator.annotate(scene=image_bgr.copy(), detections=detections)
         return annotated_image
+    
+    # def add_title_to_image(self,image_path, title_text):
+    #     img = mpimg.imread(image_path)
+    #     plt.imshow(img)
+    #     plt.title(title_text, color='black', fontsize=15)
+    #     plt.axis('off')
+    #     output_path = image_path
+    #     plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
 
 class SegmentAnythingCLI:
     def __init__(self):
@@ -43,7 +53,7 @@ class SegmentAnythingCLI:
         base_name = os.path.basename(image_path)
         renamed_name = f"{os.path.splitext(base_name)[0]}_sam_segment{os.path.splitext(base_name)[1]}"
         cv2.imwrite("sam/uploads/"+renamed_name, segmented_image)
-        # print('something happend')
+        # self.api.add_title_to_image('sam/' + 'uploads/' + renamed_name,"SAM")
         return 'sam/' + 'uploads/' + renamed_name
 
 # Example usage:

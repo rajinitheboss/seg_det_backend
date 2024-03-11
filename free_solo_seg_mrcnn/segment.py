@@ -7,6 +7,8 @@ from detectron2.data import MetadataCatalog
 import cv2
 import numpy as np
 import os
+# import matplotlib.pyplot as plt
+# import matplotlib.image as mpimg
 
 class Free_solo_segmenter:
     def __init__(self): 
@@ -17,7 +19,17 @@ class Free_solo_segmenter:
         self.cfg.MODEL.DEVICE = "cpu"  
         self.predictor = DefaultPredictor(self.cfg)
 
+    # def add_title_to_image(self,image_path, title_text):
+    #     img = mpimg.imread(image_path)
+    #     plt.imshow(img)
+    #     plt.title(title_text, color='black', fontsize=15)
+    #     plt.axis('off')
+    #     output_path = image_path
+    #     plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+
+
     def onImage(self, img_path):
+        # free=Free_solo_segmenter()
 
         base_name = os.path.basename(img_path)
         renamed_name = f"{os.path.splitext(base_name)[0]}_mrcnn_segment{os.path.splitext(base_name)[1]}"
@@ -33,4 +45,6 @@ class Free_solo_segmenter:
         save_path = "free_solo_seg_mrcnn/uploads/" + renamed_name
         cv2.imwrite(save_path, result_image)
         print(f"Image saved to {save_path}")
+        # free.add_title_to_image(save_path,"M_RCNN")
+        
         return save_path
